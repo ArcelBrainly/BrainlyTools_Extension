@@ -1,58 +1,167 @@
-import template from "backtick-template";
 import mime from "mime-types";
-import templateContentViewer from "./templates/ContentViewer.html";
+import Build from "@/scripts/helpers/Build";
+import {
+  ContentBox,
+  ContentBoxContent,
+  ActionList,
+  ActionListHole,
+  ContentBoxTitle,
+  Avatar,
+  Text,
+  Box
+} from "@style-guide";
 
 export default class ContentViewer_Content {
-  constructor(source, user) {
-    this.source = source;
-    this.contentData = {
+  /**
+   * @param {import("@BrainlyAction").GQL_Question | import("@BrainlyAction").GQL_Answer} data
+   */
+  constructor(data) {
+    this.data = data;
+    /* this.contentData = {
       content: source.content,
       user,
       userProfileLink: System.createProfileLink(user),
       avatar: System.prepareAvatar(user.avatars, { returnIcon: true })
-    }
+    } */
 
     this.CheckLatex();
     this.RenderContent();
   }
   CheckLatex() {
-    if (this.contentData.content) {
-      this.contentData.content = this.contentData.content.replace(/(?:\r\n|\n)/g, "").replace(/\[tex\](.*?)\[\/tex\]/gi, (_, latex) => {
-        let latexURI = window.encodeURIComponent(latex);
+    if (this.data.content) {
+      this.data.content = this.data.content.replace(/(?:\r\n|\n)/g, "")
+        .replace(/\[tex\](.*?)\[\/tex\]/gi, (_, latex) => {
+          let latexURI = window.encodeURIComponent(latex);
 
-        if (!latex.startsWith("\\")) {
-          latexURI = `%5C${latexURI}`;
-        }
+          if (!latex.startsWith("\\")) {
+            latexURI = `%5C${latexURI}`;
+          }
 
-        return `<img src="${System.data.Brainly.defaultConfig.config.data.config.serviceLatexUrlHttps}${latexURI}" title="${latex}" align="absmiddle" class="latex-formula sg-box__image">`
-      });
+          return `<img src="${System.data.Brainly.defaultConfig.config.data.config.serviceLatexUrlHttps}${latexURI}" title="${latex}" align="absmiddle" class="latex-formula sg-box__image">`
+        });
     }
   }
   RenderContent() {
-    this.$ = $(template(templateContentViewer, this.contentData));
-    this.$box = $("> .sg-box", this.$);
-    this.$attachmentsIconContainer = $(".sg-actions-list__hole:eq(0) .sg-content-box__content", this.$);
+    let avatar = System.ExtractAvatarURL(this.data.author);
+    let profileLink = System.createProfileLink(this.data.author);
+    this.container = Box({
+      full: true,
+      border: false,
+      padding: "small",
+      noBorderRadius: true,
+      children: Build(
+        ActionList({ toTop: true, noWrap: true }),
+        [
+          [
+            ActionListHole(),
+            [
+              [
+                ContentBox(),
+                [
+                  [
+                    ContentBoxTitle({ spacedBottom: true }),
+                    Avatar({
+                      spaced: true,
+                      imgSrc: avatar,
+                      link: profileLink,
+                    })
+                  ],
+                  this.attachmentsIconContainer =
+                  ContentBoxContent(),
+                ]
+              ]
+            ]
+          ],
+          [
+            ActionListHole({ grow: true }),
+            [
+              [
+                this.iconsContainer = ContentBox(),
+                [
+                  [
+                    ContentBoxTitle({ spacedBottom: true }),
+                    [
+                      [
+                        ActionList({ noWrap: true }),
+                        [
+                          [
+                            ActionListHole(),
+                            [
+                              [
+                                ContentBox(),
+                                [
+                                  [
+                                    ContentBoxContent(),
+                                    Text({
+                                      size: "small",
+                                      weight: "bold",
+                                      color: "gray",
+                                      href: profileLink,
+                                      html: this.data.author
+                                        .nick,
+                                    })
+                                  ]
+                                ]
+                              ]
+                            ]
+                          ]
+                        ]
+                      ]
+                    ]
+                  ],
+                  [
+                    ContentBoxContent({ full: true }),
+                    [
+                      [
+                        ActionList({
+                          toTop: true,
+                          noWrap: true
+                        }),
+                        [
+                          [
+                            ActionListHole({ hideOverflow: true }),
+                            Text({
+                              size: "small",
+                              breakWords: true,
+                              html: this.data.content,
+                            }),
+                          ]
+                        ]
+                      ]
+                    ]
+                  ]
+                ]
+              ]
+            ]
+          ],
+        ])
+    });
 
     this.RenderBestIcon();
-    this.RenderApproveIcon();
-    this.RenderQuestionPoints();
+    this.RenderApprovedIcon();
+    //this.RenderQuestionPoints();
 
-    if (this.source.user_id == window.sitePassedParams[0]) {
-      this.$box.addClass("sg-box--gray-secondary-lightest");
+    if (System.DecryptId(this.data.author.id) == window.sitePassedParams[0]) {
+      this.container.classList.add("sg-box--gray-secondary-lightest");
     }
 
-    if (this.source.attachments && this.source.attachments.length > 0) {
+    if (this.data.attachments && this.data.attachments.length > 0) {
       this.RenderAttachmentsIcon();
       this.RenderAttachments();
     }
   }
   RenderBestIcon() {
-    if (this.source.best) {
+    if ("isBest" in this.data && this.data.isBest) {
       this.RenderIcon("mustard", "excellent");
     }
   }
-  RenderApproveIcon() {
-    if (this.source.approved && this.source.approved.date) {
+  RenderApprovedIcon() {
+    if (
+      "verification" in this.data &&
+      this.data.verification &&
+      this.data.verification.approval &&
+      this.data.verification.approval.approvedTime
+    ) {
       this.$approveIcon = this.RenderIcon("mint", "verified");
     }
   }
@@ -69,19 +178,17 @@ export default class ContentViewer_Content {
 			</svg>
 		</div>`);
 
-    $icon.insertBefore(this.$attachmentsIconContainer);
+    $icon.insertBefore(this.attachmentsIconContainer);
 
     return $icon;
   }
   RenderQuestionPoints() {
-    let points = this.source.points;
-
-    if (points && typeof points == "object") {
+    if ("pointsForAnswer" in this.data) {
       let $breadcrumb = $(".sg-breadcrumb-list", this.$);
 
       let $element = $(`
 			<li class="sg-breadcrumb-list__element">
-				<span class="sg-text sg-text--bold sg-text--small sg-text--gray" title="16 pts+8 pontos pela melhor resposta">${points.ptsForResp}+${points.ptsForBest} ${System.data.locale.common.shortPoints.toLowerCase()}</span>
+				<span class="sg-text sg-text--bold sg-text--small sg-text--gray">${this.data.pointsForAnswer}+${this.data.pointsForBestAnswer} ${System.data.locale.common.shortPoints.toLowerCase()}</span>
 			</li>`);
 
       $element.appendTo($breadcrumb);
@@ -100,13 +207,13 @@ export default class ContentViewer_Content {
 								</svg>
 							</div>
 						</div>
-						<div class="sg-label__number">${this.source.attachments.length}</div>
+						<div class="sg-label__number">${this.data.attachments.length}</div>
 					</div>
 				</div>
 			</div>
 		</span>`);
 
-    this.$attachmentIcon.appendTo(this.$attachmentsIconContainer);
+    this.$attachmentIcon.appendTo(this.attachmentsIconContainer);
     this.$attachmentIcon.click(this.ToggleAttachments.bind(this));
   }
   RenderAttachments() {
@@ -117,35 +224,41 @@ export default class ContentViewer_Content {
 
     this.$attachments = $("> div", this.$attachmentsContainer);
 
-    this.source.attachments.forEach(attachment => {
-      let $hole = $(`
-			<div class="sg-actions-list__hole sg-actions-list__hole--space-bellow">
-				<a href="${attachment.full}" target="_blank">
-					<div class="sg-box sg-box--dark sg-box--image-wrapper"></div>
-				</a>
-			</div>`);
-      let $box = $(".sg-box", $hole);
-
-      if (attachment.thumbnail) {
-        $(`<img class="sg-box__image" src="${attachment.thumbnail}">`).appendTo($box);
-      } else {
-        $(`
-				<div class="sg-box__hole">
-					<span class="sg-text sg-text--small sg-text--link sg-text--bold sg-text--gray">${(mime.extension(attachment.type) || attachment.type).toLocaleUpperCase()}</span>
-				</div>`).appendTo($box);
-      }
-
-      $hole.appendTo(this.$attachments)
-    });
-
+    this.data.attachments.forEach(this.RenderAttachment.bind(this));
   }
-  ToggleAttachments() {
-    let target = $(".sg-actions-list__hole:eq(1) > .sg-content-box", this.$);
+  /**
+   * @param {import("@BrainlyAction").GQL_Attachment} attachment
+   */
+  RenderAttachment(attachment) {
+    let $hole = $(`
+    <div class="sg-actions-list__hole sg-actions-list__hole--space-bellow">
+      <a href="${attachment.url}" target="_blank">
+        <div class="sg-box sg-box--dark sg-box--image-wrapper"></div>
+      </a>
+    </div>`);
+    let $box = $(".sg-box", $hole);
+    let fileName = (
+      mime.extension(attachment.url) ||
+      mime.lookup(attachment.url)
+    ).toLocaleUpperCase();
 
-    if (this.$attachmentsContainer.is(":visible")) {
-      target = "<div />";
+    if (attachment.thumbnailUrl) {
+      $(`<img class="sg-box__image" src="${attachment.thumbnailUrl}">`)
+        .appendTo($box);
+    } else {
+      $(`
+      <div class="sg-box__hole">
+        <span class="sg-text sg-text--small sg-text--link sg-text--bold sg-text--gray">${fileName}</span>
+      </div>`).appendTo($box);
     }
 
-    this.$attachmentsContainer.appendTo(target);
+    $hole.appendTo(this.$attachments)
+  }
+  ToggleAttachments() {
+    if (this.$attachmentsContainer.is(":visible")) {
+      return this.$attachmentsContainer.detach();
+    }
+
+    this.$attachmentsContainer.appendTo(this.iconsContainer);
   }
 }

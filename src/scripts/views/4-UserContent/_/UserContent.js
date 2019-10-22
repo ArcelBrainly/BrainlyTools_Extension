@@ -3,12 +3,24 @@ import DeleteSection from "../../../components/DeleteSection";
 import UserContentRow from "./UserContentRow";
 import Button from "../../../components/Button";
 
+/**
+ * @typedef {import("@BrainlyAction").GQL_ResQuestion} GQL_ResQuestion
+ *
+ * @typedef {{
+ *  res?: GQL_ResQuestion,
+ *  resPromise?: Promise<GQL_ResQuestion>
+ * }} questions
+ */
+
 class UserContent {
   /**
-   * @param {string} caller
+   * @param {"Questions" | "Answers" | "Comments"} caller
    */
   constructor(caller) {
     this.caller = caller;
+    /**
+     * @type {{[x: string]: questions}}
+     */
     this.questions = {};
     this.selectedInputs = [];
 
@@ -51,7 +63,9 @@ class UserContent {
   async RenderSelectLabel() {
     let $tableHeaderRow = $(this.selectors.tableHeaderRow, this.table);
 
-    $tableHeaderRow.prepend(`<th style="width: 5%;"><b>${System.data.locale.common.select}</b></th>`);
+    $tableHeaderRow.prepend(
+      `<th style="width: 5%;"><b>${System.data.locale.common.select}</b></th>`
+      );
   }
   RenderModerationSection() {
     this.$moderateSection = $(`
@@ -64,9 +78,13 @@ class UserContent {
 			<div class="sg-content-box__actions sg-content-box__actions--spaced-top sg-content-box__actions--spaced-bottom"> </div>
 		</div>`);
 
-    this.$moderateHeader = $(" > .sg-content-box__content:eq(0) > .sg-content-box", this.$moderateSection);
-    this.$moderateContent = $("> .sg-content-box__content:eq(1)", this.$moderateSection);
-    this.$moderateActions = $("> .sg-content-box__actions", this.$moderateSection);
+    this.$moderateHeader = $(
+      " > .sg-content-box__content:eq(0) > .sg-content-box", this
+      .$moderateSection);
+    this.$moderateContent = $("> .sg-content-box__content:eq(1)", this
+      .$moderateSection);
+    this.$moderateActions = $("> .sg-content-box__actions", this
+      .$moderateSection);
 
     this.$moderateSection.insertAfter(this.table);
   }
@@ -103,7 +121,9 @@ class UserContent {
     })
   }
   RenderSelectContentWarning() {
-    this.$selectContentWarning = $(`<div class="sg-bubble sg-bubble--top sg-bubble--row-start sg-bubble--peach sg-text--white">${System.data.locale.userContent.notificationMessages.selectAtLeastOneContent}</div>`);
+    this.$selectContentWarning = $(
+      `<div class="sg-bubble sg-bubble--top sg-bubble--row-start sg-bubble--peach sg-text--white">${System.data.locale.userContent.notificationMessages.selectAtLeastOneContent}</div>`
+      );
   }
   BindPageCloseEvent() {
     window.addEventListener("beforeunload", () => {
@@ -159,7 +179,8 @@ class UserContent {
     });
 
     this.$correctionReason = $("textarea", this.$correctionReasonContainer);
-    this.$reportButtonContainer = $(".sg-content-box__actions:nth-child(2)", this.$correctionReasonContainer);
+    this.$reportButtonContainer = $(".sg-content-box__actions:nth-child(2)",
+      this.$correctionReasonContainer);
 
     this.$reportButton.appendTo(this.$reportButtonContainer);
   }

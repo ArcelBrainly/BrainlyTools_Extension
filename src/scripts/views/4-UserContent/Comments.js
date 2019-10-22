@@ -18,96 +18,94 @@ class Comments extends UserContent {
   }
   GetQuestions() {
     $.each(this.questions, this.GetQuestion.bind(this));
+    Object.entries(this.questions).forEach(console.log)
   }
+  /**
+   * @param {number} questionID
+   * @param {import("./_/UserContent").questions} question
+   */
   async GetQuestion(questionID, question) {
     question.res = await question.resPromise;
-    let rows = this.rows.filter(row => row.element.questionID == questionID);
+    let rows = this.rows.filter(row => row.questionID == questionID);
 
-    if (!question.res || !question.res.success)
+    if (!question.res || !question.res.data || !question.res.data.question)
       return rows.forEach(row => row.Deleted(true));
 
-    let allComments = await this.FindUsersComments(question.res.data);
+    let allComments = this.FindUsersComments(question.res.data
+      .question);
 
     this.AttachCommentsToRows(allComments, rows);
   }
-  async FindUsersComments(data) {
-    let allComments = [];
-    let usersComments = [];
-
-    let questionComments = await this.FindCommentsFromContent(data.task, 1);
-    allComments = [...allComments, ...questionComments];
-
-    if (data.responses && data.responses.length > 0) {
-      let answersComments = await this.FindCommentsFromContents([...data.responses], 2);
-      allComments = [...allComments, ...answersComments];
-    }
-
-    if (allComments.length > 0) {
-      allComments.forEach(comment => {
-        if (comment.user_id == ~~window.sitePassedParams[0]) {
-          comment.content = comment.content.replace(/(<([^>]+)>)/gmi, "");
-
-          usersComments.push(comment);
-        }
-      });
-    }
-
-    return Promise.resolve(usersComments);
-  }
   /**
-   * @param {[]} contents
+   *
+   * @param {import("@BrainlyAction").GQL_Question} data
    */
-  FindCommentsFromContents(contents, type) {
-    return new Promise(resolve => {
-      let allComments = [];
+  FindUsersComments(data) {
+    let questionComments = this.FindCommentsFromContent(data);
+    let answersComments = this.FindCommentsFromContents(data.answers.nodes);
+    /**
+     * @type {import("@BrainlyAction").GQL_Comment[]}
+     */
+    let usersComments = [
+      ...questionComments,
+      ...answersComments,
+    ];
 
-      let _loop = async () => {
-        let content = contents.shift();
-        let comments = await this.FindCommentsFromContent(content, type);
-        allComments = [...allComments, ...comments];
-
-        if (contents.length == 0) {
-          resolve(allComments);
-        } else {
-          _loop();
-        }
-      };
-      _loop();
-    });
-  }
-  async FindCommentsFromContent(content, type) {
-    let allComments = [];
-
-    if (content.comments.count > 0) {
-      // This should be exists in here because this line can push comment details even if related question has been deleted.
-      allComments = content.comments.items;
-
-      if (content.comments.count > 5 && content.settings && !content.settings.is_deleted) {
-        let resComments = await new Action().GetComments(content.id, type, content.comments.count);
-
-        if (resComments && resComments.success)
-          allComments = resComments.data.comments.items;
-      }
-    }
-
-    return Promise.resolve(allComments);
+    return usersComments
   }
   /**
-   * @param {[]} allComments
-   * @param {[]} rows
+   * @param {import("@BrainlyAction").GQL_Answer[]} contents
+   */
+  FindCommentsFromContents(contents) {
+    let allComments = [];
+
+    if (contents.length > 0)
+      contents.forEach(content => {
+        let comments = this.FindCommentsFromContent(content);
+        allComments = [
+          ...allComments,
+          ...comments
+        ];
+      });
+
+    return allComments;
+  }
+  /**
+   * @param {import("@BrainlyAction").GQL_Question | import("@BrainlyAction").GQL_Answer} content
+   */
+  FindCommentsFromContent(content) {
+    return content.comments.edges.filter(this.FindCommentsFromEdge.bind(this))
+  }
+  /**
+   * @param {import("@BrainlyAction").GQL_CommentEdge} edge
+   */
+  FindCommentsFromEdge(edge) {
+    if (
+      System
+      // @ts-ignore
+      .DecryptId(edge.node.author.id) == Number(window.sitePassedParams[0])
+    ) {
+      edge.node.content = edge.node.content.replace(/(<([^>]+)>)/gmi, "");
+
+      return true;
+    };
+  }
+  /**
+   * @param {import("@BrainlyAction").GQL_Comment[]} allComments
+   * @param {import("./_/UserContentRow").default[]} rows
    */
   AttachCommentsToRows(allComments, rows) {
     allComments.forEach(comment => this.AttachCommentToRows(comment, rows));
   }
   /**
-   * @param {{}} comment
-   * @param {[]} rows
+   * @param {import("@BrainlyAction").GQL_Comment} comment
+   * @param {import("./_/UserContentRow").default[]} rows
    */
   AttachCommentToRows(comment, rows) {
     rows.forEach(row => this.AttachCommentToRow(comment, row));
   }
   /**
-   * @param {{}} comment
+   * @param {import("@BrainlyAction").GQL_Comment} comment
    * @param {import("./_/UserContentRow").default} row
    */
   AttachCommentToRow(comment, row) {
